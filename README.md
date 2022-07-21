@@ -1,4 +1,4 @@
-# cmdline
+# Cmdline
 Simple command line parser for programs written in C.
 
 This is intended to be a very simple and easy to use command line parser library routine. It is a little like Puthon's argparse library, but much simpler. 
