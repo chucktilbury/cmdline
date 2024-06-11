@@ -14,31 +14,44 @@
 
 #include "str.h"
 
+/**
+ * Note that this structure of types and conditions allows for a fairly complex
+ * interractions. Most of these are not checked to flag developer errors. For
+ * example, if an arg is a type of num, but it takes no args, that does not 
+ * really make sense, but it is accepted by this functionality. The result 
+ * would always be a command line error when you try to provide an arg where 
+ * none is expected. So these flags cannot be combined will-nilly. 
+ */
 typedef enum {
-    // nneded by getarg()
-    CMD_NONE = 0x00,
-    CMD_RARG = 0x01,
-    CMD_OPT = 0x02,
+    // needed by getarg()
+    CMD_NARG = 0x00,    // no args required
+    CMD_RARG = 0x01,    // args are required if the item is on the command line
+    CMD_OARG = 0x02,    // args are optional
 
     // data type helpers
-    CMD_STR = 0x04,
-    CMD_LIST = 0x08,
-    CMD_NUM = 0x10,
-    CMD_BOOL = 0x20,
+    CMD_STR = 0x04,     // type is a string
+    CMD_NUM = 0x10,     // type is a number
+    CMD_BOOL = 0x20,    // type is bool
+    CMD_LIST = 0x08,    // a list is accepted by the arg
 
     // internal flags, do not use
     CMD_REQD = 0x40,
     CMD_SEEN = 0x80,
 } CmdType;
 
-void init_cmdline(const char* intro, const char* outtro);
+#define ALLOW_NOPT 0
+#define REJECT_NOPT 1
+
+void init_cmdline(const char* intro, const char* outtro,
+                    const char* name, const char* version);
 void uninit_cmdline();
 void add_cmdline(int short_opt, const char* long_opt, 
                     const char* name, const char* help, 
                     const char* def_val, CmdType flag);
 void parse_cmdline(int argc, char** argv, int flag);
-const char* get_cmdline(const char* name);
-String* iterate_cmdline(int* idx);
+String* get_cmdline(const char* name);
+String* iterate_cmdline(const char* name, int* post);
+String* iterate_nonopts(int* idx);
 void show_cmdline_help();
 
 #endif  /* _CMDLINE_H_ */

@@ -14,5 +14,4 @@ Simply type ``make`` and if you have any ANSI C compiler installed the test prog
 To find out how to use the GNU/POSIX command line parser, take a look at the man page for getopt(3). Also, just about every GNU app uses this. Run the test program and play with the command line that was implemented there. That should give sufficient direction on how to implement your own.
 
 ## TODO
-There are some enhansements that could be done. Mostly around retrieving a list from the command line options. I would like to implement a syntax such as ``--opt=first:second:third`` where this creates a list of 3 items for this option that can be iterated. Also, if a option appears more than once in the command line, and lists are enabled for that option, then the arg is added to the list. As things are, the value is simply replaced.
-
+Add some functionality to validate args to their type. Also solve a bug where a command arg can be construed as a missing parameter.
