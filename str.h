@@ -55,6 +55,7 @@ void insert_str_lst(StrLst* lst, String* data, int idx);
 void push_str_lst(StrLst* lst, String* data);
 String* pop_str_lst(StrLst* lst);
 String* peek_str_lst(StrLst* lst);
+void clear_str_lst(StrLst* lst);
 String* iterate_str_lst(StrLst* lst, int* post);
 
 #endif  /* _STR_H_ */

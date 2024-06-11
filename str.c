@@ -225,8 +225,12 @@ void replace_string_fmt(String* ptr, const char* find, const char* fmt, ...) {
  */
 const char* raw_string(String* str) {
 
-    str->buffer[str->length] = '\0';
-    return (const char*)str->buffer;
+    if(str != NULL) {
+        str->buffer[str->length] = '\0';
+        return (const char*)str->buffer;
+    }
+    else
+        return NULL;
 }
 
 /**
@@ -426,7 +430,13 @@ StrLst* create_str_lst() {
  */
 void destroy_str_lst(StrLst* lst) {
 
-    destroy_ptr_lst(lst);
+    if(lst != NULL) {
+        int post = 0;
+        String* str;
+        while(NULL != (str = iterate_ptr_lst(lst, &post)))
+            destroy_string(str);
+        destroy_ptr_lst(lst);
+    }
 }
 
 /**
@@ -521,4 +531,18 @@ String* iterate_str_lst(StrLst* lst, int* post) {
     return (String*)iterate_ptr_lst(lst, post);
 }
 
+/**
+ * @brief Clear the list and free all entries, but do not destroy the list.
+ * 
+ * @param lst 
+ */
+void clear_str_lst(StrLst* lst) {
 
+    int post = 0;
+    String* str;
+
+    while(NULL != (str = iterate_str_lst(lst, &post)))
+        destroy_string(str);
+
+    lst->len = 0;
+}
