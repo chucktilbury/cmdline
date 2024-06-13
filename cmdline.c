@@ -149,13 +149,90 @@ static _cmd_opt_t_* search_no_name() {
 }
 
 /**
+ * @brief Return a string for the option type for error reporting.
+ * 
+ * @param type 
+ * @return const char* 
+ */
+static inline const char* type_to_str(CmdType type) {
+
+    if(type & CMD_BOOL) 
+        return "bool";
+    else if(type & CMD_NUM)
+        return "number";
+    else if(type & CMD_STR)
+        return "string";
+
+    return "unknown";
+}
+
+/**
+ * @brief Copy the bytes in the str to the buffer as lowered case.
+ * 
+ * @param str 
+ * @param buffer 
+ * @param len 
+ */
+static void strnlower(const char* str, char* buffer, int len) {
+
+    int i = 0;
+    for(; i < len-1 && str[i] != '\0'; i++) {
+        buffer[i] = tolower(str[i]);
+    }
+    buffer[i] = '\0';
+}
+
+/**
+ * @brief If the str could be interpreted as the type that is specified in 
+ * the op, the reutn true, otherwise, return false.
+ * 
+ * @param op 
+ * @param str 
+ * @return bool
+ */
+static inline bool validate(_cmd_opt_t_* op, const char* str) {
+
+    if(op->flag & CMD_NUM) {
+        // if all of the characters in the str are digits then return true.
+        for(int i = 0; str[i] != '\0'; i++) {
+            if(!isdigit(str[i]))
+                return false;
+        }
+        return true;
+    }
+    else if(op->flag & CMD_BOOL) {
+        // Most people will just 1 or 0. actual single character options 
+        // return whether they were seen or not.
+        char buf[10];
+        strnlower(str, buf, sizeof(buf));
+        if(!strncmp(buf, "true", sizeof(buf)) || 
+                !strncmp(buf, "false", sizeof(buf)) ||
+                !strncmp(buf, "yes", sizeof(buf)) ||
+                !strncmp(buf, "no", sizeof(buf))) {
+            return true;
+        }
+        else 
+            return false;
+    }
+    else if(str[0] != '-') {
+        // if the first character of the str is a '-', then it's probably not 
+        // intended to be an arg. It's probably an option.
+        //error("arg \"%s\" is malformed. See docs.", str);
+        return true;
+    }
+    // don't validate for str to keep it generic.
+
+    return false;
+}
+
+/**
  * @brief If it's a list, then there are ',' characters in it. Use strtok() to
  * iterate the string for tokens and save each one in the given list.
  * 
  * @param lst 
  * @param str 
  */
-static void parse_str_lst(StrLst* lst, const char* str) {
+static void parse_str_lst(_cmd_opt_t_* op, const char* str) {
 
     char* ptr = (char*)str;
     char *save, *token;
@@ -165,8 +242,11 @@ static void parse_str_lst(StrLst* lst, const char* str) {
         if(NULL == token)
             break;
         else {
-            //printf("HERE!\n");
-            append_str_lst(lst, create_string(token));
+            if(validate(op, token))
+                append_str_lst(op->values, create_string(token));
+            else 
+                error("cannot validate argument \"%s\" to be a %s", 
+                        optarg, type_to_str(op->flag));
         }
         ptr = NULL;
     }
@@ -402,10 +482,14 @@ void parse_cmdline(int argc, char** argv, int flag) {
 
                 if(optarg) {
                     if(op->flag & CMD_LIST) 
-                        parse_str_lst(op->values, optarg);
+                        parse_str_lst(op, optarg);
                     else {
                         clear_str_lst(op->values);
-                        append_str_lst(op->values, create_string(optarg));
+                        if(validate(op, optarg))
+                            append_str_lst(op->values, create_string(optarg));
+                        else 
+                            error("cannot validate argument \"%s\" to be a %s", 
+                                    optarg, type_to_str(op->flag));
                     }
                 }
             }
@@ -418,10 +502,14 @@ void parse_cmdline(int argc, char** argv, int flag) {
                 if(optarg) {
                     char* val = (optarg[0] == ':' || optarg[0] == '=')? &optarg[1] : optarg;
                     if(op->flag & CMD_LIST) 
-                        parse_str_lst(op->values, val);
+                        parse_str_lst(op, val);
                     else {
                         clear_str_lst(op->values);
-                        append_str_lst(op->values, create_string(val));
+                        if(validate(op, optarg))
+                            append_str_lst(op->values, create_string(optarg));
+                        else 
+                            error("cannot validate argument \"%s\" to be a %s", 
+                                    optarg, type_to_str(op->flag));
                     }
                 }
             }
@@ -494,7 +582,7 @@ void show_cmdline_help() {
     int post = 0;
     _cmd_opt_t_* ptr;
     printf("  Parm             Args      Help\n");
-    printf("--------------------------------------------------------------------------\n");
+    printf("-+----------------+---------+---------------------------------------------\n");
     while(NULL != (ptr = iterate_ptr_lst(cmdline->cmd_opts, &post))) {
         if(isgraph(ptr->short_opt) || strlen(ptr->long_opt) > 0) {
             if(isgraph(ptr->short_opt))
@@ -531,7 +619,10 @@ void show_cmdline_help() {
             int c = (ptr->flag & CMD_NUM)? 'N' : 
                     (ptr->flag & CMD_STR)? 'S': 
                     (ptr->flag & CMD_BOOL)? 'B' : '?';
-            printf("  %-17s[%c,%c,...] %s\n", ptr->name, c, c, ptr->help);
+            printf("  %-17s[%c,%c,...] %s ", ptr->name, c, c, ptr->help);
+            printf("%s ", (ptr->flag & CMD_REQD)? "(reqd)": "");
+            //printf("0x%02X", ptr->flag);
+            fputc('\n', stdout);
         }
     }
     printf("--------------------------------------------------------------------------\n");
@@ -614,3 +705,4 @@ int main(int argc, char** argv) {
 }
 
 #endif
+
