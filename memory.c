@@ -77,7 +77,7 @@ const char* mem_copy_str(const char* str) {
     if(str == NULL || strlen(str) == 0)
         return mem_alloc(1);
     else
-        return (const char*)mem_copy((void*)str, strlen(str));
+        return (const char*)mem_copy((void*)str, strlen(str)+1);
 }
 
 /**
