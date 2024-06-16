@@ -12,6 +12,8 @@
 #ifndef _CMDLINE_H_
 #define _CMDLINE_H_
 
+#include <stdbool.h>
+
 #include "str.h"
 
 /**
@@ -49,9 +51,12 @@ void add_cmdline(int short_opt, const char* long_opt,
                     const char* name, const char* help, 
                     const char* def_val, CmdType flag);
 void parse_cmdline(int argc, char** argv, int flag);
-String* get_cmdline(const char* name);
-String* iterate_cmdline(const char* name, int* post);
-String* iterate_nonopts(int* idx);
+const char* get_cmdline(const char* name);
+int get_cmdline_as_num(const char* name);
+bool get_cmdline_as_bool(const char* name);
+const char* get_cmdline_as_str(const char* name);
+const char* iterate_cmdline(const char* name, int* post);
+
 void show_cmdline_help();
 
 #endif  /* _CMDLINE_H_ */

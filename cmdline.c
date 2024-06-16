@@ -398,7 +398,7 @@ void add_cmdline(int short_opt, const char* long_opt,
     opt->flag = NULL; // always return the arg
     opt->val = short_opt;
 
-    prepend_buffer(cmdline->options, opt, sizeof(struct option));
+    append_buffer(cmdline->options, opt, sizeof(struct option));
 
     // capture the help and all.
     _cmd_opt_t_* ptr = _ALLOC_DS(_cmd_opt_t_);
@@ -541,12 +541,12 @@ void parse_cmdline(int argc, char** argv, int flag) {
  * @param post 
  * @return const char* 
  */
-String* iterate_cmdline(const char* name, int* post) {
+const char* iterate_cmdline(const char* name, int* post) {
 
     _cmd_opt_t_* opt = search_name(name);
     ASSERT_MSG(opt != NULL, "cannot find the option searched for: %s", name);
 
-    return iterate_str_lst(opt->values, post);
+    return raw_string(iterate_str_lst(opt->values, post));
 }
 
 /**
@@ -556,7 +556,7 @@ String* iterate_cmdline(const char* name, int* post) {
  * @param name 
  * @return const char* 
  */
-String* get_cmdline(const char* name) {
+const char* get_cmdline(const char* name) {
 
     _cmd_opt_t_* opt = search_name(name);
     ASSERT_MSG(opt != NULL, "cannot find the option searched for: %s", name);
@@ -566,34 +566,75 @@ String* get_cmdline(const char* name) {
 }
 
 /**
+ * @brief Get the cmdline as num object
+ * 
+ * @param name 
+ * @return int 
+ */
+int get_cmdline_as_num(const char* name) {
+
+    return (int)strtol(get_cmdline(name), NULL, 10);
+}
+
+/**
+ * @brief Get the cmdline as bool object
+ * 
+ * @param name 
+ * @return true 
+ * @return false 
+ */
+bool get_cmdline_as_bool(const char* name) {
+
+    _cmd_opt_t_* opt = search_name(name);
+    return (opt->flag & CMD_SEEN);
+}
+
+/**
+ * @brief Get the cmdline as str object
+ * 
+ * @param name 
+ * @return const char* 
+ */
+const char* get_cmdline_as_str(const char* name) {
+
+    return get_cmdline(name);
+}
+
+/**
  * @brief Show the help message and exit the program.
  * 
  */
 void show_cmdline_help() {
 
+    char tmp[64];
+
     printf("\nUsage: %s [options]", cmdline->prog);
     if(!cmdline->flag)
         printf(" files\n");
     else 
-        printf("\n\n");
+        printf("\n");
 
     printf("%s v%s\n%s\n\n", cmdline->name, cmdline->version, cmdline->intro);
     printf("Options:\n");
+    printf("  Parm             Args        Help\n");
+    printf("-+----------------+-----------+---------------------------------------------\n");
+
     int post = 0;
     _cmd_opt_t_* ptr;
-    printf("  Parm             Args      Help\n");
-    printf("-+----------------+---------+---------------------------------------------\n");
+
     while(NULL != (ptr = iterate_ptr_lst(cmdline->cmd_opts, &post))) {
         if(isgraph(ptr->short_opt) || strlen(ptr->long_opt) > 0) {
-            if(isgraph(ptr->short_opt))
-                printf("  -%c ", ptr->short_opt);
-            else
-                printf("     ");
+            strcpy(tmp, " ");
+            if(isgraph(ptr->short_opt)) // could be zero
+                snprintf(tmp, sizeof(tmp), "-%c", ptr->short_opt);
+            printf("%4s", tmp);
+            //printf("%s", tmp);
 
-            if(strlen(ptr->long_opt) > 0) 
-                printf("--%-12s", ptr->long_opt);
-            else
-                printf("              ");
+            strcpy(tmp, " ");
+            if(strlen(ptr->long_opt) > 0) // should never be NULL
+                snprintf(tmp, sizeof(tmp), "--%s", ptr->long_opt);
+            printf(" %-14s", tmp);
+            //printf(" %s", tmp);
             
             if((ptr->flag & CMD_RARG) || (ptr->flag & CMD_OARG)) {
                 int c = (ptr->flag & CMD_NUM)? 'N' : 
@@ -601,108 +642,42 @@ void show_cmdline_help() {
                         (ptr->flag & CMD_BOOL)? 'B' : '?';
 
                 if(ptr->flag & CMD_LIST) 
-                    printf("[%c,%c,...] ", c, c);    
+                    snprintf(tmp, sizeof(tmp), "[%c,%c, ...]", c, c);    
                 else 
-                    printf("[%c]       ", c);    
+                    snprintf(tmp, sizeof(tmp), "[%c]", c);    
             }
             else
-                printf("[]        ");
+                strcpy(tmp, "  ");
+            printf("%-12s", tmp);
+            //printf("%s", tmp);
 
-            if(strlen(ptr->help) > 0)
-                printf("%s ", ptr->help);
-
-            printf("%s ", (ptr->flag & CMD_REQD)? "(reqd)": "");
-            //printf("0x%02X", ptr->flag);
-            fputc('\n', stdout);
+            if(ptr->flag & CMD_REQD) 
+                snprintf(tmp, sizeof(tmp), "(reqd) %s", ptr->help);
+            else
+                snprintf(tmp, sizeof(tmp), "%s", ptr->help);
+            printf("%s\n", tmp);            
         }
         else {
+            snprintf(tmp, sizeof(tmp), "%s", ptr->name);
+            printf("  %-17s", tmp);
+
             int c = (ptr->flag & CMD_NUM)? 'N' : 
                     (ptr->flag & CMD_STR)? 'S': 
                     (ptr->flag & CMD_BOOL)? 'B' : '?';
-            printf("  %-17s[%c,%c,...] %s ", ptr->name, c, c, ptr->help);
-            printf("%s ", (ptr->flag & CMD_REQD)? "(reqd)": "");
-            //printf("0x%02X", ptr->flag);
-            fputc('\n', stdout);
+            snprintf(tmp, sizeof(tmp), "[%c,%c, ...]", c, c);            
+            printf("%-12s", tmp);
+
+            if(ptr->flag & CMD_REQD) 
+                snprintf(tmp, sizeof(tmp), "(reqd) %s", ptr->help);
+            else
+                snprintf(tmp, sizeof(tmp), "%s", ptr->help);
+            printf("%s\n", tmp);            
         }
     }
-    printf("--------------------------------------------------------------------------\n");
-    printf("  S = string, N = number, B = bool\n");
+    printf("-+----------------+-----------+---------------------------------------------\n");
+    printf("  S = string, N = number, B = bool ('on'|'off'|'true'|'false')\n");
 
     printf("\n%s\n\n", cmdline->outtro);
     exit(1);
 }
-
-// /**
-//  * @brief Iterate the extra parameters if there are any. Returns NULL at 
-//  * the end.
-//  * 
-//  * @param idx 
-//  * @return const char* 
-//  */
-// String* iterate_nonopts(int *idx) {
-
-//     return iterate_str_lst(cmdline->non_opts, idx);
-// }
-
-
-/**
- * @brief Testing
- * 
- */
-#ifdef TEST_CMDLINE
-
-// example:
-//  ./test_cmd  -b:asdasd asdsds --bump=123123123 -a=123,345,456 --add=098098
-// outputs:
-//  veto: (null)
-//  plow: (null)
-//  verbo: (null)
-//  bump: 123123123
-//  add: 123, 345, 456, 098098
-//  files: asdsds
-int main(int argc, char** argv) {
-
-    init_cmdline("This is the testing thing.", "Report bugs to your friends.", "Test Cmdline", "0.0.0");
-    add_cmdline('a', "add", "otters", "Add the things to the otters.", NULL, CMD_STR|CMD_LIST|CMD_RARG|CMD_REQD);
-    add_cmdline('b', "bump", "bump", "Bump the things with the otters.", "blouts", CMD_STR|CMD_OARG);
-    add_cmdline('v', NULL, "verbo", "int 0 - 10 default is 0. Set the verbosity.", "0", CMD_NUM|CMD_RARG);
-    add_cmdline(0, "veto", "veto", "Vote the otters down.", NULL, CMD_STR|CMD_RARG);
-    add_cmdline(0, "plow", "plow", "Plow the otter's fields.", NULL, CMD_NUM|CMD_RARG);
-
-    // add some default command line parameters that are handled in the 
-    // parser. These options should not be defined in any other context 
-    // without first modifying the option parser.
-    add_cmdline('V', "version", NULL, "show the name and version", NULL, CMD_NARG|CMD_BOOL);
-    add_cmdline('h', "help", NULL, "show this help information", NULL, CMD_NARG|CMD_BOOL);
-
-    // Special list of files has no command option.
-    add_cmdline(0, NULL, "list of files", "list of files to be processed", NULL, CMD_STR|CMD_REQD);
-
-    // Actually read the command line and parse the variables.
-    parse_cmdline(argc, argv, ALLOW_NOPT);
-
-    // see what we got.
-    printf("veto: %s\n", raw_string(get_cmdline("veto")));
-    printf("plow: %s\n", raw_string(get_cmdline("plow")));
-    printf("verbose: %s\n", raw_string(get_cmdline("verbo")));
-    printf("bump: %s\n", raw_string(get_cmdline("bump")));
-
-    String* str;
-    int post = 0;
-    printf("add: ");
-    while(NULL != (str = iterate_cmdline("otters", &post)))
-        printf("'%s', ", raw_string(str));
-    printf("\b\b \n");
-
-    post = 0;
-    printf("files: ");
-    while(NULL != (str = iterate_cmdline("list of files", &post)))
-        printf("'%s', ", raw_string(str));
-    printf("\b\b \n");
-
-    //show_cmdline_help();
-    return 0;
-}
-
-#endif
 

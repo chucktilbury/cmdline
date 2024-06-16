@@ -1,3 +1,10 @@
+/**
+ * @file temp.c
+ * 
+ * @brief This is the example program from the getopt_long(3) man page.
+ * 
+ */
+
 #include <getopt.h>
 #include <stdio.h>  /* for printf */
 #include <stdlib.h> /* for exit */
