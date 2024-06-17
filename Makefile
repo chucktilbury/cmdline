@@ -5,6 +5,8 @@ COMOBJ	=	buffer.o \
 			cmdline.o \
 			memory.o \
 			ptr_lst.o \
+			parse.o \
+			errors.o \
 			str.o
 
 CC	=	gcc
@@ -25,6 +27,8 @@ cmdline.o: cmdline.c cmdline.h myassert.h memory.o
 memory.o: memory.c memory.h myassert.h
 ptr_lst.o: ptr_lst.c ptr_lst.h myassert.h memory.o
 str.o: str.c str.h myassert.h memory.o
+parse.o: parse.c parse.h myassert.h memory.o
+errors.o: errors.c errors.h myassert.h memory.o
 
 $(LIBRARY): $(COMOBJ)
 	$(AR) rcs $@ $^

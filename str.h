@@ -31,8 +31,11 @@ void insert_string_char(String* ptr, int idx, int ch);
 void insert_string_fmt(String* ptr, int idx, const char* fmt, ...);
 
 void replace_string_str(String* ptr, const char* find, const char* repl);
-void replace_string_char(String* ptr, const char* find, int ch);
 void replace_string_fmt(String* ptr, const char* find, const char* fmt, ...);
+
+void clear_string(String* str);
+void lower_string(String* str);
+void upper_string(String* str);
 
 const char* raw_string(String* str);
 const char* clip_string(String* str, int start, int end);

@@ -19,63 +19,44 @@
 #include <stdbool.h>
 
 #include "ptr_lst.h"
-#include "str.h"
+//#include "str.h"
 #include "memory.h"
 #include "myassert.h"
-#include "buffer.h"
+//#include "buffer.h"
 #include "cmdline.h"
+#include "parse.h"
+#include "errors.h"
 
-typedef Buffer _cmd_opts_t_;
+// typedef Buffer _cmd_opts_t_;
 
-typedef struct {
-    int short_opt;
-    const char* long_opt;
-    const char* name;
-    const char* help;
-    //const char* value;
-    StrLst* values;
-    int flag; 
-} _cmd_opt_t_;
+// typedef struct {
+//     int short_opt;
+//     const char* long_opt;
+//     const char* name;
+//     const char* help;
+//     //const char* value;
+//     StrLst* values;
+//     int flag; 
+// } _cmd_opt_t_;
 
-typedef struct {
-    const char* prog;
-    const char* name;
-    const char* version;
-    const char* intro;
-    const char* outtro;
-    PtrLst* cmd_opts;
-    _cmd_opts_t_* options;
-    String* sopts; 
-    //StrLst* non_opts;
-    int flag;
-    int min_reqd;
-} _cmdline_t_;
+// typedef struct {
+//     const char* prog;
+//     const char* name;
+//     const char* version;
+//     const char* intro;
+//     const char* outtro;
+//     PtrLst* cmd_opts;
+//     _cmd_opts_t_* options;
+//     String* sopts; 
+//     //StrLst* non_opts;
+//     int flag;
+//     int min_reqd;
+// } _cmdline_t_;
 
 static _cmdline_t_* cmdline = NULL;
 
-/**
- * @brief Show an error message and then show the help message and then
- * exit the program.
- * 
- * @param fmt 
- * @param ... 
- */
-static void error(const char* fmt, ...) {
-
-    va_list args;
-
-    fprintf(stderr, "\nCMD ERROR: ");
-
-    const char* format = (fmt[0] == '+')? &fmt[1]: fmt;
-    va_start(args, fmt);
-    vfprintf(stderr, format, args);
-    va_end(args);
-
-    if(fmt[0] != '+') {
-        fputs("\n", stderr);
-        show_cmdline_help();
-    }
-}
+// private interface for parser.
+_cmdline_t_* _get_cmdline_() { return cmdline; }
 
 /**
  * @brief Search for a short option in the command list.

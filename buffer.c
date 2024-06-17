@@ -109,6 +109,7 @@ void append_buffer(Buffer* buf, void* bytes, size_t length) {
     resize_buffer(buf, length);
     memcpy(&buf->buffer[buf->length], bytes, length);
     buf->length += length;
+    buf->buffer[buf->length] = '\0';
 }
 
 /**

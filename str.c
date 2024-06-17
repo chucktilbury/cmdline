@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
+#include <ctype.h>
 
 #include "buffer.h"
 #include "memory.h"
@@ -214,6 +215,39 @@ void replace_string_fmt(String* ptr, const char* find, const char* fmt, ...) {
 
     replace_string_str(ptr, find, b);
     _FREE(b);
+}
+
+/**
+ * @brief Clear the string, but do not reset the capacity.
+ * 
+ * @param str 
+ */
+void clear_string(String* str) {
+
+    str->length = 0;
+    str->buffer[0] = '\0';
+}
+
+/**
+ * @brief Convert the string to lower case.
+ * 
+ * @param str 
+ */
+void lower_string(String* str) {
+
+    for(size_t i = 0; i < str->length; i++)
+        str->buffer[i] = tolower(str->buffer[i]);
+}
+
+/**
+ * @brief Convert the string to upper case.
+ * 
+ * @param str 
+ */
+void upper_string(String* str) {
+
+    for(size_t i = 0; i < str->length; i++)
+        str->buffer[i] = toupper(str->buffer[i]);
 }
 
 /**
