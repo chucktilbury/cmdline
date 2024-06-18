@@ -229,6 +229,18 @@ void clear_string(String* str) {
 }
 
 /**
+ * @brief Make a copy of the string and return the copy. Does not change the
+ * existing string.
+ * 
+ * @param str 
+ * @return String* 
+ */
+String* copy_string(String* str) {
+
+    return create_string(raw_string(str));
+}
+
+/**
  * @brief Convert the string to lower case.
  * 
  * @param str 

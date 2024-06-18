@@ -2,5 +2,6 @@
 #define _ERRORS_H_
 
 void error(const char* fmt, ...);
+void warning(const char* fmt, ...);
 
 #endif  /* _ERRORS_H_ */

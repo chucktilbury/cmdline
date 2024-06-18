@@ -15,7 +15,7 @@
 #include "buffer.h"
 #include "str.h"
 
-typedef Buffer _cmd_opts_t_;
+typedef void (*cmdline_callback)();
 
 typedef struct {
     int short_opt;
@@ -24,6 +24,7 @@ typedef struct {
     const char* help;
     StrLst* values;
     int flag; 
+    cmdline_callback callback;
 } _cmd_opt_t_;
 
 typedef struct {
@@ -33,12 +34,11 @@ typedef struct {
     const char* intro;
     const char* outtro;
     PtrLst* cmd_opts;
-    _cmd_opts_t_* options;
     String* sopts; 
     int flag;
     int min_reqd;
 } _cmdline_t_;
 
-void internal_parse_cmdline(int argc, char** argv, int flag);
+void internal_parse_cmdline(int argc, char** argv);
 
 #endif  /* _PARSE_H_ */

@@ -34,7 +34,29 @@ void error(const char* fmt, ...) {
 
     if(fmt[0] != '+') {
         fputs("\n", stderr);
-        //show_cmdline_help();
+        show_help();
+    }
+}
+
+/**
+ * @brief Show a warning message and continue.
+ * 
+ * @param fmt 
+ * @param ... 
+ */
+void warning(const char* fmt, ...) {
+
+    va_list args;
+
+    fprintf(stderr, "\nCMD WARNING: ");
+
+    const char* format = (fmt[0] == '+')? &fmt[1]: fmt;
+    va_start(args, fmt);
+    vfprintf(stderr, format, args);
+    va_end(args);
+
+    if(fmt[0] != '+') {
+        fputs("\n", stderr);
     }
 }
 

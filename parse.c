@@ -19,34 +19,18 @@
 #include "myassert.h"
 #include "parse.h"
 #include "errors.h"
+#include "cmdline.h"
 
-typedef enum {
-    // special characters
-    EOS = 0,    // end of string
-    EOI,        // end of input
-
-    // token types
-    TOK_DDASH = 100,  // a "--" token
-    TOK_SDASH,  // a "-" token
-    TOK_UNUM,   // parsed as strtol(str, NUMM, 16)
-    TOK_INUM,   // parsed as strtol(str, NULL, 10)
-    TOK_FNUM,   // parsed as strtod(str, NULL)
-    TOK_BOOL,   // strings as true, false, off on
-    TOK_WORD,   // anything that is not a number or a bool
-    TOK_COLON,  // a ':'
-    TOK_EQU,    // a '='
-    TOK_COMMA,  // a ','
-    TOK_END,    // no more tokens are available
-    TOK_ERROR,  // received an error while scanning something
-} _token_type_;
-
-typedef struct {
-    _token_type_ type;
-    String* str;
-} _token_t_;
+#define EOI 1
+#define EOS 0
 
 static _cmdline_t_* cmdline;
+// defined in cmdline.c, but not part of the public interface.
 _cmdline_t_* _get_cmdline_();
+_cmd_opt_t_* search_short(int c);
+_cmd_opt_t_* search_long(const char* opt);
+_cmd_opt_t_* search_name(const char* name);
+_cmd_opt_t_* search_no_name();
 
 typedef struct {
     int argc;
@@ -56,12 +40,11 @@ typedef struct {
 } _parser_t_;
 
 static _parser_t_* parser;
-static _token_t_* token = NULL;
 
 // return the current character
 static int get_char() {
 
-    if(parser->aidx == parser->argc) 
+    if(parser->aidx >= parser->argc) 
         return EOI;  // no more characters are available
     else
         return parser->argv[parser->aidx][parser->sidx];
@@ -75,7 +58,7 @@ static int consume_char() {
     else if(parser->argv[parser->aidx][parser->sidx] == 0) {
         parser->aidx++;
         parser->sidx = 0;
-        return get_char();
+        return get_char(); // returns EOS
     }
     else {
         parser->sidx++;
@@ -83,25 +66,13 @@ static int consume_char() {
     }
 }
 
-static const char* tok_to_str(_token_type_ type) {
+// return the full text of the option currently being parsed.
+static const char* crnt_opt() {
 
-    return (type == TOK_DDASH)? "DDASH" :
-        (type == TOK_SDASH)? "SDASH" :
-        (type == TOK_UNUM)? "UNUM" :
-        (type == TOK_INUM)? "INUM" :
-        (type == TOK_FNUM)? "FNUM" :
-        (type == TOK_BOOL)? "BOOL" :
-        (type == TOK_WORD)? "WORD" :
-        (type == TOK_COLON)? "COLON" :
-        (type == TOK_EQU)? "EQU" :
-        (type == TOK_COMMA)? "COMMA" :
-        (type == TOK_ERROR)? "ERROR" :
-        (type == TOK_END)? "END" : "UNKNOWN";
-}
-
-static _token_t_* get_token() {
-
-    return token;
+    if(parser->aidx >= parser->argc) 
+        return parser->argv[parser->argc-1];
+    else
+        return parser->argv[parser->aidx];
 }
 
 // returns true if the character is a single-character token.
@@ -112,7 +83,6 @@ static inline bool is_a_token(int ch) {
         case '=':
         case ':':
         case ',':
-        case '-':
         case EOI:
         case EOS:
             return true;
@@ -121,338 +91,7 @@ static inline bool is_a_token(int ch) {
     }
 }
 
-static bool capture_digits() {
-
-    int ch = get_char();
-    if(isdigit(ch)) {
-        while(isdigit(ch)) {
-            append_string_char(token->str, ch);
-            ch = consume_char();
-        }
-    }
-    else {
-        error("expected a digit but got a '%c'", ch);
-        return true;
-    }
-
-    return false;
-}
-
-static int capture_exponent() {
-
-    int ch = get_char();
-    if(ch == '-') {
-        // exponent can be negative
-        append_string_char(token->str, ch);
-        ch = consume_char();
-
-        if(capture_digits()) {
-            return 101;
-        }
-    }
-    else if(capture_digits())
-        return 101;
-
-    ch = get_char();
-    if(is_a_token(ch)) {
-        token->type = TOK_FNUM;
-        return 100;
-    }
-    else {
-        while(!is_a_token(ch)) {
-            append_string_char(token->str, ch);
-            ch = consume_char();
-        }
-        error("malformed exponent: %s", raw_string(token->str));
-        token->type = TOK_ERROR;
-        return 101;
-    }
-
-    return 100;
-}
-
-static int capture_mantissa() {
-
-    int ch = get_char();
-    while(isdigit(ch)) {
-        append_string_char(token->str, ch);
-        ch = consume_char();
-    }
-
-    if(is_a_token(ch)) {
-        token->type = TOK_FNUM;
-        return 100;
-    }
-    else if(ch == 'e' || ch == 'E') {
-        append_string_char(token->str, ch);
-        consume_char();
-        return capture_exponent();
-    }
-    else {
-        while(!is_a_token(ch)) {
-            append_string_char(token->str, ch);
-            ch = consume_char();
-        }
-        error("malformed floating point number: %s", raw_string(token->str));
-        token->type = TOK_ERROR;
-        return 101;
-    }
-
-    return 100;
-}
-
-static int capture_integer() {
-
-    int ch = get_char();
-    while(isdigit(ch)) {
-        append_string_char(token->str, ch);
-        ch = consume_char();
-    }
-
-    if(is_a_token(ch)) {
-        token->type = TOK_INUM;
-        return 100;
-    }
-    else if(ch == 'e' || ch == 'E') {
-        append_string_char(token->str, ch);
-        consume_char();
-        return capture_exponent();
-    }
-    else if(ch == '.') {
-        append_string_char(token->str, ch);
-        consume_char();
-        return capture_mantissa();
-    }
-    else {
-        while(!is_a_token(ch)) {
-            append_string_char(token->str, ch);
-            ch = consume_char();
-        }
-        error("malformed integer: %s", raw_string(token->str));
-        token->type = TOK_ERROR;
-        return 101;
-    }
-
-    return 100;
-}
-
-static int capture_hex() {
-
-    int ch = get_char();
-    while(isxdigit(ch)) {
-        append_string_char(token->str, ch);
-        ch = consume_char();
-    }
-
-    if(is_a_token(ch)) {
-        token->type = TOK_UNUM;
-        return 100;
-    }
-    else {
-        while(!is_a_token(ch)) {
-            append_string_char(token->str, ch);
-            ch = consume_char();
-        }
-        error("malformed hex number: %s", raw_string(token->str));
-        token->type = TOK_ERROR;
-        return 101;
-    }
-
-    return 100;
-}
-
-static void capture_number() {
-
-    int state = 0;
-    bool finished = false;
-
-    while(!finished) {
-        int ch = get_char();
-        switch(state) {
-            case 0:
-                // check for zero. valid hex and floats can start with a 0.
-                if(ch == '0') {
-                    append_string_char(token->str, ch);
-                    consume_char();
-                    state = 1;
-                }
-                else {
-                    append_string_char(token->str, ch);
-                    consume_char();
-                    state = capture_integer();
-                } 
-                break;
-
-            case 1:
-                // have a 0, check for an 'e', 'x', '.', or a token
-                switch(ch) {
-                    case 'e':
-                    case 'E':
-                        // nonesense to have an exponent with a leading zero, 
-                        // but strtod() will parse it.
-                        append_string_char(token->str, ch);
-                        consume_char();
-                        state = capture_exponent();
-                        break;
-                    case 'x':
-                    case 'X':
-                        // format of 0x???
-                        append_string_char(token->str, ch);
-                        consume_char();
-                        state = capture_hex();
-                        break;
-                    case '.':
-                        // format of 0.???
-                        append_string_char(token->str, ch);
-                        consume_char();
-                        state = capture_mantissa();
-                        break;
-                    default:
-                        if(is_a_token(ch)) {
-                            // zero by itself
-                            token->type = TOK_INUM;
-                            state = 100;
-                        }
-                        else {
-                            // malformed number
-                            while(!is_a_token(ch)) {
-                                append_string_char(token->str, ch);
-                                ch = consume_char();
-                            }
-                            error("malformed number: %s", raw_string(token->str));
-                            state = 101;
-                        }
-                        break;
-                }
-                break;
-
-            case 100:
-                // completed number
-                finished = true;
-                break;
-
-            case 101:
-                // discovered an error
-                finished = true;
-                token->type = TOK_ERROR;
-                break;
-
-            default:
-                fprintf(stderr, "Fatal ERROR: %s: invlid state in cmd parser: %d\n", __func__, state);
-                abort();
-        }
-    }
-}
-
-static void capture_word() {
-
-    int ch = get_char();
-    while(isprint(ch) && !is_a_token(ch)) {
-        append_string_char(token->str, ch);
-        ch = consume_char();
-    }
-
-    if(!comp_string_str(token->str, "true") ||
-            !comp_string_str(token->str, "false") || 
-            !comp_string_str(token->str, "on") ||
-            !comp_string_str(token->str, "off"))
-        token->type = TOK_BOOL;
-    else
-        token->type = TOK_WORD;
-
-}
-
-/**
- * @brief Return the new token and discard the old one.
- * 
- * @return _token_t_* 
- */
-static _token_t_* consume_token() {
-
-    clear_string(token->str);
-    token->type = TOK_END;
-    
-    int state = 0;
-    bool finished = false;
-
-    while(!finished) {
-        int ch = get_char();
-        switch(state) {
-            case 0:
-                // dispatch to the first character of a new token
-                switch(ch) {
-                    case EOS:
-                        // skip the end-of-string characters
-                        consume_char();
-                        break;
-                    case EOI:
-                        token->type = TOK_END;
-                        state = 100;
-                        break;
-                    case '-':
-                        append_string_char(token->str, ch);
-                        consume_char();
-                        state = 1;
-                        break;
-                    case ':':
-                        append_string_char(token->str, ch);
-                        token->type = TOK_COLON;
-                        consume_char();
-                        state = 100;
-                        break;
-                    case '=':
-                        append_string_char(token->str, ch);
-                        token->type = TOK_EQU;
-                        consume_char();
-                        state = 100;
-                        break;
-                    case ',':
-                        append_string_char(token->str, ch);
-                        token->type = TOK_COMMA;
-                        consume_char();
-                        state = 100;
-                        break;
-                    default:
-                        if(isdigit(ch)) {
-                            capture_number();
-                            state = 100;
-                        }
-                        else {
-                            append_string_char(token->str, ch);
-                            consume_char();
-                            capture_word();
-                            state = 100;
-                        }
-                }
-                break;
-
-            case 1:
-                if(ch == '-') {
-                    append_string_char(token->str, ch);
-                    token->type = TOK_DDASH;
-                    consume_char();
-                    state = 100;
-                }
-                else {
-                    token->type = TOK_SDASH;
-                    state = 100;
-                }
-                break;
-
-            case 100:
-                // completed token ready for return
-                finished = true;
-                break;
-            default:
-                fprintf(stderr, "Fatal ERROR: %s: invlid state in cmd parser: %d\n", __func__, state);
-                abort();
-        }
-    }
-
-    return token;
-}
-
-void init_parser(int argc, char** argv) {
+static void init_parser(int argc, char** argv) {
 
     parser = _ALLOC_DS(_parser_t_);
     parser->argc = argc;
@@ -460,30 +99,348 @@ void init_parser(int argc, char** argv) {
     parser->aidx = 1;
     parser->sidx = 0;
 
-    token = _ALLOC_DS(_token_t_);
-    token->str = create_string(NULL);
-    token->type = TOK_END;
-
+    // get the data structure pointer from cmdline.c
     cmdline = _get_cmdline_();
-
-    consume_token();
 }
 
-void internal_parse_cmdline(int argc, char** argv, int flag) {
+// return the number of characters that were read.
+int read_word(String* str) {
 
+    clear_string(str);
+    int count = 0;
+
+    int ch = get_char();
+    while(isprint(ch) && !is_a_token(ch)) {
+        append_string_char(str, ch);
+        ch = consume_char();
+        count++;
+    }
+
+    return count;
 }
 
-// int main(int argc, char** argv) {
+// when this is entered, the short options are an array of characters.
+static int parse_short() {
 
-//     init_parser(argc, argv);
+    String* str = create_string(NULL);
 
-//     _token_t_* tok = get_token();
-//     while(true) {
-//         printf("token: %s '%s'\n", tok_to_str(tok->type), raw_string(tok->str));
-//         if(tok->type == TOK_END || token->type == TOK_ERROR)
-//             break;
-//         tok = consume_token();
-//     }
-//     return 0;
-// }
+    bool finished = false;
+    int state = 0;
+    int ch;
+    _cmd_opt_t_* opt;
+    
+    while(!finished) {
+        ch = get_char();
+        switch(state) {
+            case 0:
+                // initial state;
+                if(isprint(ch) && !is_a_token(ch)) {
+                    opt = search_short(ch);
+                    if(opt != NULL) {
+                        if(opt->callback != NULL)
+                            (*opt->callback)();
+
+                        if(opt->flag & CMD_RARG)
+                            state = 2;
+                        else if(opt->flag & CMD_OARG)
+                            state = 3;
+                        else {
+                            opt->flag |= CMD_SEEN;
+                            state = 1;
+                        }
+                        consume_char();
+                    }
+                    else
+                        error("unknown short command option: '%s'", crnt_opt());
+                }
+                else 
+                    error("expected a short option in '%s', but got '%c'", crnt_opt(), ch);
+                break;
+
+            case 1:
+                // expect a command option or EOS, else error
+                if(isprint(ch) && !is_a_token(ch)) {
+                    opt = search_short(ch);
+                    if(opt != NULL) {
+                        if(opt->callback != NULL)
+                            (*opt->callback)();
+
+                        if(opt->flag & CMD_RARG)
+                            state = 2;
+                        else if(opt->flag & CMD_OARG)
+                            state = 3;
+                        else
+                            opt->flag |= CMD_SEEN;
+                        consume_char();
+                    }
+                    else if(ch == EOS)
+                        state = 100;
+                    else
+                        error("unknown short command option: '%s'", crnt_opt());
+                }
+                else 
+                    error("expected a short command option in '%s', but got '%c'", crnt_opt(), ch);
+                break;
+
+            case 2:
+                // expecting a '=' or an error for required arg
+                if(ch == '=') {
+                    consume_char();
+                    state = 4;
+                }
+                else 
+                    error("command option '%s' requires an argument.", crnt_opt());
+                break;
+
+            case 3:
+                // expecting a '=' or another cmd option, else an error.
+                if(ch == '=') {
+                    consume_char();
+                    state = 4;
+                }
+                else 
+                    state = 1;
+                break;
+
+            case 4:
+                // a command arg is required, else an error
+                if(read_word(str) > 0) {
+                    if(opt->flag & CMD_LIST) {
+                        append_str_lst(opt->values, copy_string(str));
+                        state = 5;
+                    }
+                    else {
+                        if(opt->flag & CMD_SEEN)
+                            warning("duplicate option value being replaced: %s", crnt_opt());
+                        clear_str_lst(opt->values);
+                        append_str_lst(opt->values, copy_string(str));
+                        state = 6;
+                    }
+                }
+                else 
+                    error("expected an option argument in '%s', but got a %c", crnt_opt(), ch);
+                break;
+
+            case 5:
+                // a ',' or EOS is required, else an error
+                if(ch == ',') {
+                    consume_char();
+                    state = 4;
+                }
+                else if(ch == EOS) {
+                    consume_char();
+                    opt->flag |= CMD_SEEN;
+                    state = 100;
+                }
+                else
+                    error("unexpected character in command argument '%s': '%c'", crnt_opt(), ch);
+                break;
+
+            case 6:
+                // verify EOS
+                if(ch != EOS)
+                    error("unexpected character following command option '%s': %c", crnt_opt(), ch);
+                else {
+                    opt->flag |= CMD_SEEN;
+                    state = 100;
+                }
+                break;
+
+            case 100:
+                // finished with this element
+                destroy_string(str);
+                finished = true;
+                break;
+
+            default:
+                fprintf(stderr, "CMD Internal error: unknown state in %s: %d\n", __func__, state);
+                abort();
+        }
+    }
+    
+    return 0;
+}
+
+static int parse_long() {
+
+    // read long name    
+    String* str = create_string(NULL) ;
+    read_word(str);
+
+    _cmd_opt_t_* opt = search_long(raw_string(str));
+    if(opt != NULL) {
+        if(opt->callback != NULL)
+            (*opt->callback)();
+
+        bool finished = false;
+        int state = 0;
+        int ch;
+
+        while(!finished) {
+            ch = get_char();
+            switch(state) {
+                case 0:
+                    // see if there is supposed to be an arg
+                    if(opt->flag & CMD_RARG)
+                        state = 1;
+                    else if(opt->flag & CMD_OARG)
+                        state = 2;
+                    else 
+                        // no args expected, check for one, just in case
+                        state = 3;
+                    break;
+
+                case 1:
+                    // required arg
+                    if(ch == '=') {
+                        consume_char();
+                        state = 4;
+                    }
+                    else 
+                        error("expected an argument for command option: %s", raw_string(str));
+                    break;
+
+                case 2:
+                    // optional arg
+                    if(ch == '=') {
+                        consume_char();
+                        state = 4;
+                    }
+                    else if(ch == EOS) {
+                        consume_char();
+                        state = 100;
+                    }
+                    else 
+                        error("unexpected character following command option '%s': %c", crnt_opt(), ch);
+                    break;
+
+                case 3:
+                    // make sure no arg is present
+                    if(ch != EOS)
+                        error("unexpected character following command option '%s': %c", crnt_opt(), ch);
+                    else {
+                        state = 100;
+                    }
+                    break;
+
+                case 4:
+                    // a word is required or error
+                    if(read_word(str) > 0) {
+                        if(opt->flag & CMD_LIST) {
+                            append_str_lst(opt->values, copy_string(str));
+                            state = 5;
+                        }
+                        else {
+                            if(opt->flag & CMD_SEEN)
+                                warning("duplicate option value being replaced: %s", crnt_opt());
+                            clear_str_lst(opt->values);
+                            append_str_lst(opt->values, copy_string(str));
+                            state = 3;
+                        }
+                    }
+                    else 
+                        error("expected an option argument, but got a %c in '%s'", ch, crnt_opt());
+                    break;
+
+                case 5:
+                    // a comma or EOS is expected, or error
+                    if(ch == ',') {
+                        consume_char();
+                        state = 4;
+                    }
+                    else if(ch == EOS) {
+                        consume_char();
+                        state = 100;
+                    }
+                    else
+                        error("unexpected character in command argument '%s': %c", crnt_opt(), ch);
+                    break;
+
+                case 100:
+                    // all done
+                    opt->flag |= CMD_SEEN;
+                    destroy_string(str);
+                    finished = true;
+                    break;
+
+                default:
+                    fprintf(stderr, "CMD Internal error: unknown state in %s: %d\n", __func__, state);
+                    abort();
+            }
+        }
+    }
+    else
+        error("unknown command line option: %s", raw_string(str));
+
+    return 0;
+}
+
+static int parse_word() {
+    
+    String* str = create_string(NULL);
+    read_word(str);
+
+    _cmd_opt_t_* opt = search_no_name();
+    if(opt != NULL) {
+        if(opt->callback != NULL)
+            (*opt->callback)();
+
+        opt->flag |= CMD_SEEN;
+        append_str_lst(opt->values, str);
+    }
+    else
+        error("misplaced command line argument: %s", raw_string(str));
+    
+    return 0;
+}
+
+void internal_parse_cmdline(int argc, char** argv) {
+
+    init_parser(argc, argv);
+
+    int state = 0;
+    bool finished = false;
+    int ch;
+
+    while(!finished) {
+        ch = get_char();
+        switch(state) {
+            case 0:
+                // first char after init
+                if(ch == '-') {
+                    consume_char();
+                    state = 1;
+                }
+                else if(!is_a_token(ch)) 
+                    state = parse_word();
+                else if(ch == EOS)
+                    consume_char();
+                else if(ch == EOI)
+                    state = 100;
+                else 
+                    error("expected a command option in '%s', but got '%c'", crnt_opt(), ch);
+                    // does not return
+                break;
+
+            case 1:
+                // double or single dash
+                if(ch == '-') {
+                    consume_char();
+                    state = parse_long();
+                }
+                else
+                    state = parse_short();
+                break;
+
+            case 100:
+                // finished reading options
+                finished = true;
+                break;
+
+            default:
+                fprintf(stderr, "CMD Internal error: unknown state in %s: %d\n", __func__, state);
+                abort();
+        }
+    }
+}
 

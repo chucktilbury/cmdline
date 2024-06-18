@@ -16,6 +16,8 @@
 
 #include "str.h"
 
+typedef void (*cmdline_callback)();
+
 /**
  * Note that this structure of types and conditions allows for a fairly complex
  * interractions. Most of these are not checked to flag developer errors. For
@@ -49,14 +51,16 @@ void init_cmdline(const char* intro, const char* outtro,
 void uninit_cmdline();
 void add_cmdline(int short_opt, const char* long_opt, 
                     const char* name, const char* help, 
-                    const char* def_val, CmdType flag);
+                    const char* def_val, 
+                    cmdline_callback cb, CmdType flag);
 void parse_cmdline(int argc, char** argv, int flag);
 const char* get_cmdline(const char* name);
-int get_cmdline_as_num(const char* name);
-bool get_cmdline_as_bool(const char* name);
-const char* get_cmdline_as_str(const char* name);
+// int get_cmdline_as_num(const char* name);
+// bool get_cmdline_as_bool(const char* name);
+// const char* get_cmdline_as_str(const char* name);
 const char* iterate_cmdline(const char* name, int* post);
 
-void show_cmdline_help();
+void show_help();
+void show_version();
 
 #endif  /* _CMDLINE_H_ */

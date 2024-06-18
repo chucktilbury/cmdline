@@ -40,9 +40,9 @@
 //  files: 'glass', 'leather'
 
 
-static const char* bool_to_str(bool val) {
+static const char* bool_to_str(const char* val) {
 
-    return val? "true": "false";
+    return (val != NULL)? "true": "false";
 }
 
 /**
@@ -59,48 +59,48 @@ int main(int argc, char** argv) {
 
     // add some command options.
     // If an opt is required then it does not need a default value
-    add_cmdline('a', "add", "otters", "Add the things to the otters.", NULL, CMD_STR|CMD_LIST|CMD_RARG|CMD_REQD);
+    add_cmdline('a', "add", "otters", "Add the things to the otters.", NULL, NULL, CMD_STR|CMD_LIST|CMD_RARG|CMD_REQD);
 
     // If an opt is optional, then should have a default value
-    add_cmdline('b', "bump", "bump", "Bump the things with the otters.", "blouts", CMD_STR|CMD_OARG);
+    add_cmdline('b', "bump", "bump", "Bump the things with the otters.", "blouts", NULL, CMD_STR|CMD_OARG);
 
     // If the opt is present, then it requires an arg, but the opt is optional.
-    add_cmdline('v', NULL, "verbo", "int 0 - 10 default is 0. Set the verbosity.", "0", CMD_NUM|CMD_RARG);
+    add_cmdline('v', NULL, "verbo", "int 0 - 10 default is 0. Set the verbosity.", "0", NULL, CMD_NUM|CMD_RARG);
 
     // An arg is required but the opt is optional. Correct boolean values are "yes", "no", "true", and "false".
-    add_cmdline(0, "veto", "veto", "Vote the otters down.", "false", CMD_BOOL|CMD_RARG);
+    add_cmdline(0, "veto", "veto", "Vote the otters down.", "false", NULL, CMD_BOOL|CMD_RARG);
 
     // get_cmdline_as_num() or get_cmdline_as_str() return the same value with a different type.
-    add_cmdline(0, "plow", "plow", "Plow the otter's fields.", "8086", CMD_NUM|CMD_RARG);
+    add_cmdline(0, "plow", "plow", "Plow the otter's fields.", "8086", NULL, CMD_NUM|CMD_RARG);
 
     // If these are present on the command line, they are set to true. When a short arg is 
     // specified, then they can be combined such as -12. See examples above.
-    add_cmdline('1', NULL, "one", "One of them", NULL, CMD_BOOL);
-    add_cmdline('2', NULL, "two", "Two of them", NULL, CMD_BOOL);
-    add_cmdline('3', NULL, "three", "Three of them", NULL, CMD_BOOL);
+    add_cmdline('1', NULL, "one", "One of them", NULL, NULL, CMD_BOOL);
+    add_cmdline('2', NULL, "two", "Two of them", NULL, NULL, CMD_BOOL);
+    add_cmdline('3', NULL, "three", "Three of them", NULL, NULL, CMD_BOOL);
 
     // add some default command line parameters that are handled in the 
     // parser. These options should not be defined in any other context 
     // without first modifying the parse_cmdline() option parser.
-    add_cmdline('V', "version", NULL, "show the name and version", NULL, CMD_NARG|CMD_BOOL);
-    add_cmdline('h', "help", NULL, "show this help information", NULL, CMD_NARG|CMD_BOOL);
+    add_cmdline('V', "version", NULL, "show the name and version", NULL, show_version, CMD_NARG|CMD_BOOL);
+    add_cmdline('h', "help", NULL, "show this help information", NULL, show_help, CMD_NARG|CMD_BOOL);
 
     // Special list of files has no command option.
-    add_cmdline(0, NULL, "list of files", "list of files to be processed", NULL, CMD_STR|CMD_REQD);
+    add_cmdline(0, NULL, "list of files", "list of files to be processed", NULL, NULL, CMD_STR|CMD_REQD);
 
     // Actually read the command line and parse the variables.
     parse_cmdline(argc, argv, ALLOW_NOPT);
 
     // see what we got.
-    printf("veto: %s\n", bool_to_str(get_cmdline_as_bool("veto")));
+    printf("veto: %s\n", bool_to_str(get_cmdline("veto")));
     printf("plow: %s\n", get_cmdline("plow"));
-    printf("verbose: %d\n", get_cmdline_as_num("verbo"));
+    printf("verbose: %s\n", get_cmdline("verbo"));
     printf("bump: %s\n", get_cmdline("bump"));
 
     // stand-alone bools.
-    printf("one: %s\n", bool_to_str(get_cmdline_as_bool("one")));
-    printf("two: %s\n", bool_to_str(get_cmdline_as_bool("two")));
-    printf("three: %s\n", bool_to_str(get_cmdline_as_bool("three")));
+    printf("one: %s\n", bool_to_str(get_cmdline("one")));
+    printf("two: %s\n", bool_to_str(get_cmdline("two")));
+    printf("three: %s\n", bool_to_str(get_cmdline("three")));
 
     const char* str;
     int post = 0;
@@ -117,7 +117,8 @@ int main(int argc, char** argv) {
         printf("'%s', ", str);
     printf("\b\b \n");
 
-    //show_cmdline_help();
+    //show_help();
+    uninit_cmdline();
     return 0;
 }
 
